@@ -20,7 +20,7 @@ Then open the local URL Streamlit prints.
 
 ## Dashboard
 
-**Link:** https://teiko-technical-assesment-wubuccbithjgvshygq7iny.streamlit.app/
+**Link:** https://eileenr09-teiko-technical-assesment-pa5ifn9z284dgtvjdzqvhe.streamlit.app/
 
 The dashboard has six tabs: Cohort overview, Population overview (Part 2),
 Response comparison (Part 3), Longitudinal trends (bonus), Subset analysis
