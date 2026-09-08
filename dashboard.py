@@ -25,11 +25,46 @@ RESPONSE_COLORS = {"yes": "#2a78d6", "no": "#eb6834"}
 DIVERGING_SCALE = [[0.0, "#e34948"], [0.5, "#f0efec"], [1.0, "#2a78d6"]]
 COUNT_BAR_COLOR = "#2a78d6"
 
+# Chart chrome tokens, matched to the app's Streamlit theme so every chart
+# reads as one surface rather than a white box floating on the page.
+CHART_SURFACE = "#fcfcfb"
+INK_PRIMARY = "#0b0b0b"
+INK_SECONDARY = "#52514e"
+INK_MUTED = "#898781"
+GRIDLINE = "#e1e0d9"
+AXIS_LINE = "#c3c2b7"
+FONT_FAMILY = "system-ui, -apple-system, 'Segoe UI', sans-serif"
+
 
 def hex_to_rgba(hex_color: str, alpha: float) -> str:
     hex_color = hex_color.lstrip("#")
     r, g, b = (int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
     return f"rgba({r},{g},{b},{alpha})"
+
+
+def style_fig(fig, height: int | None = None, bargap: float = 0.3):
+    """Apply consistent chart chrome: surface, ink, hairline grid, spacing."""
+    fig.update_layout(
+        paper_bgcolor=CHART_SURFACE,
+        plot_bgcolor=CHART_SURFACE,
+        font=dict(family=FONT_FAMILY, color=INK_SECONDARY, size=13),
+        title_font=dict(family=FONT_FAMILY, color=INK_PRIMARY, size=15),
+        margin=dict(l=48, r=24, t=52, b=40),
+        hoverlabel=dict(
+            bgcolor=CHART_SURFACE,
+            font=dict(family=FONT_FAMILY, color=INK_PRIMARY, size=12),
+            bordercolor=AXIS_LINE,
+        ),
+        bargap=bargap,
+    )
+    fig.update_xaxes(gridcolor=GRIDLINE, zeroline=False, linecolor=AXIS_LINE,
+                      tickcolor=AXIS_LINE, tickfont=dict(color=INK_MUTED, size=11))
+    fig.update_yaxes(gridcolor=GRIDLINE, zeroline=False, linecolor=AXIS_LINE,
+                      tickcolor=AXIS_LINE, tickfont=dict(color=INK_MUTED, size=11))
+    fig.update_annotations(font=dict(family=FONT_FAMILY, color=INK_SECONDARY, size=12))
+    if height:
+        fig.update_layout(height=height)
+    return fig
 
 
 st.set_page_config(page_title="Loblaw Bio immune analysis", layout="wide")
@@ -104,11 +139,12 @@ with tab_cohort:
     )
 
     if subject_demographics is not None:
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Samples", f"{len(summary['sample'].unique()):,}")
-        c2.metric("Subjects", f"{len(subject_demographics):,}")
-        c3.metric("Projects", subject_demographics["project"].nunique())
-        c4.metric("Indications", subject_demographics["condition"].nunique())
+        with st.container(border=True):
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Samples", f"{len(summary['sample'].unique()):,}")
+            c2.metric("Subjects", f"{len(subject_demographics):,}")
+            c3.metric("Projects", subject_demographics["project"].nunique())
+            c4.metric("Indications", subject_demographics["condition"].nunique())
 
     if cohort_overview is not None:
         dim_cols = st.columns(4)
@@ -129,24 +165,28 @@ with tab_cohort:
                 labels={"subject_count": "Subjects", "category": ""},
                 title=title,
             )
-            fig.update_traces(marker_color=COUNT_BAR_COLOR)
-            fig.update_layout(showlegend=False, height=260, margin=dict(t=40, b=20))
+            fig.update_traces(marker_color=COUNT_BAR_COLOR, marker_cornerradius=4)
+            fig.update_layout(showlegend=False)
+            style_fig(fig, height=260)
             with col:
-                st.plotly_chart(fig, width="stretch")
+                with st.container(border=True):
+                    st.plotly_chart(fig, width="stretch")
 
     if subject_demographics is not None:
         st.subheader("Age distribution")
-        fig_age = px.histogram(
-            subject_demographics,
-            x="age",
-            color="sex",
-            barmode="overlay",
-            opacity=0.7,
-            nbins=20,
-            color_discrete_map={"M": "#2a78d6", "F": "#eb6834"},
-            labels={"age": "Age", "sex": "Sex"},
-        )
-        st.plotly_chart(fig_age, width="stretch")
+        with st.container(border=True):
+            fig_age = px.histogram(
+                subject_demographics,
+                x="age",
+                color="sex",
+                barmode="overlay",
+                opacity=0.7,
+                nbins=20,
+                color_discrete_map={"M": "#2a78d6", "F": "#eb6834"},
+                labels={"age": "Age", "sex": "Sex"},
+            )
+            style_fig(fig_age, height=340)
+            st.plotly_chart(fig_age, width="stretch")
 
 # Part 2 population overview
 with tab_overview:
@@ -158,18 +198,21 @@ with tab_overview:
         .assign(population=lambda d: pd.Categorical(d["population"], POPULATIONS, ordered=True))
         .sort_values("population")
     )
-    fig_mean = px.bar(
-        mean_freq,
-        x="population",
-        y="percentage",
-        color="population",
-        color_discrete_map=POPULATION_COLORS,
-        text_auto=".1f",
-        labels={"percentage": "Mean relative frequency (%)", "population": "Population"},
-        title="Average population share across all samples",
-    )
-    fig_mean.update_layout(showlegend=False)
-    st.plotly_chart(fig_mean, width='stretch')
+    with st.container(border=True):
+        fig_mean = px.bar(
+            mean_freq,
+            x="population",
+            y="percentage",
+            color="population",
+            color_discrete_map=POPULATION_COLORS,
+            text_auto=".1f",
+            labels={"percentage": "Mean relative frequency (%)", "population": "Population"},
+            title="Average population share across all samples",
+        )
+        fig_mean.update_traces(marker_cornerradius=4)
+        fig_mean.update_layout(showlegend=False)
+        style_fig(fig_mean, height=380)
+        st.plotly_chart(fig_mean, width='stretch')
 
     selected_samples = st.multiselect(
         "Sample filter", sorted(summary["sample"].unique()), default=[]
@@ -185,17 +228,19 @@ with tab_overview:
 with tab_response:
     st.subheader("Miraclib melanoma PBMC: responders vs. non-responders")
     if comparison is not None:
-        fig_box = px.box(
-            comparison,
-            x="population",
-            y="percentage",
-            color="response",
-            points="outliers",
-            category_orders={"population": POPULATIONS, "response": ["yes", "no"]},
-            color_discrete_map=RESPONSE_COLORS,
-            labels={"percentage": "Relative frequency (%)", "response": "Response"},
-        )
-        st.plotly_chart(fig_box, width='stretch')
+        with st.container(border=True):
+            fig_box = px.box(
+                comparison,
+                x="population",
+                y="percentage",
+                color="response",
+                points="outliers",
+                category_orders={"population": POPULATIONS, "response": ["yes", "no"]},
+                color_discrete_map=RESPONSE_COLORS,
+                labels={"percentage": "Relative frequency (%)", "response": "Response"},
+            )
+            style_fig(fig_box, height=420)
+            st.plotly_chart(fig_box, width='stretch')
 
     if stats_results is not None:
         st.markdown(
@@ -285,7 +330,9 @@ with tab_longitudinal:
                 fig.add_trace(
                     go.Scatter(
                         x=series["time_from_treatment_start"], y=series["mean_percentage"],
-                        mode="lines+markers", line=dict(color=color, width=2),
+                        mode="lines+markers",
+                        line=dict(color=color, width=2),
+                        marker=dict(size=8, line=dict(width=2, color=CHART_SURFACE)),
                         name=f"Response: {response_value}", legendgroup=response_value,
                         showlegend=show_legend,
                     ),
@@ -293,8 +340,13 @@ with tab_longitudinal:
                 )
         fig.update_xaxes(tickvals=[0, 7, 14], title_text="Day")
         fig.update_yaxes(title_text="Mean %")
-        fig.update_layout(height=560, title=f"{treatment_choice} - population trends by response")
-        st.plotly_chart(fig, width="stretch")
+        fig.update_layout(
+            title=f"{treatment_choice} - population trends by response",
+            legend=dict(orientation="h", yanchor="bottom", y=1.06, xanchor="left", x=0),
+        )
+        style_fig(fig, height=580)
+        with st.container(border=True):
+            st.plotly_chart(fig, width="stretch")
 
         if longitudinal_stats is not None:
             arm_stats = longitudinal_stats[longitudinal_stats["treatment"] == treatment_choice]
@@ -323,9 +375,10 @@ with tab_subset:
         ):
             rows = subset_breakdown[subset_breakdown["breakdown"] == breakdown_name]
             with col:
-                st.markdown(f"**{title}**")
-                for _, row in rows.iterrows():
-                    st.metric(str(row["category"]), int(row["count"]))
+                with st.container(border=True):
+                    st.markdown(f"**{title}**")
+                    for _, row in rows.iterrows():
+                        st.metric(str(row["category"]), int(row["count"]))
 
     st.dataframe(baseline, width='stretch', hide_index=True)
 
@@ -334,7 +387,8 @@ with tab_subset:
     st.caption("Average B-cell count - not restricted to PBMC or to miraclib.")
     if answer_path.exists():
         answer = answer_path.read_text(encoding="utf-8").strip().split(": ")[-1]
-        st.metric("Average B-cell count", answer)
+        with st.container(border=True):
+            st.metric("Average B-cell count", answer)
 
     if derived_features is not None:
         st.divider()
@@ -358,94 +412,107 @@ with tab_signal:
 
     if signal_metrics is not None:
         m = signal_metrics.iloc[0]
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Out-of-fold ROC-AUC", f"{m['oof_roc_auc']:.3f}")
-        c2.metric("Permutation p-value", f"{m['auc_permutation_p_value']:.3f}")
-        c3.metric("Subjects (grouped CV)", int(m["n_subjects"]))
-        c4.metric("Responders / non-responders", f"{int(m['n_responders'])} / {int(m['n_non_responders'])}")
-        st.caption(
-            f"Cross-validation: {m['cv_scheme']}. The AUC ({m['oof_roc_auc']:.3f}) is modest in "
-            f"absolute terms, but a {int(m['n_permutations'])}-permutation label-shuffle test shows "
-            f"it beats every shuffled-label run (p={m['auc_permutation_p_value']:.3f}) - a real, "
-            "reproducible signal, just too weak on these five features alone to be clinically useful."
-        )
+        with st.container(border=True):
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Out-of-fold ROC-AUC", f"{m['oof_roc_auc']:.3f}")
+            c2.metric("Permutation p-value", f"{m['auc_permutation_p_value']:.3f}")
+            c3.metric("Subjects (grouped CV)", int(m["n_subjects"]))
+            c4.metric("Responders / non-responders", f"{int(m['n_responders'])} / {int(m['n_non_responders'])}")
+            st.caption(
+                f"Cross-validation: {m['cv_scheme']}. The AUC ({m['oof_roc_auc']:.3f}) is modest in "
+                f"absolute terms, but a {int(m['n_permutations'])}-permutation label-shuffle test shows "
+                f"it beats every shuffled-label run (p={m['auc_permutation_p_value']:.3f}) - a real, "
+                "reproducible signal, just too weak on these five features alone to be clinically useful."
+            )
 
     if signal_permutation_null is not None and signal_metrics is not None:
-        fig_perm = px.histogram(
-            signal_permutation_null, x="null_auc", nbins=30,
-            labels={"null_auc": "AUC under shuffled labels"},
-            title="Observed AUC vs. the label-shuffled null distribution",
-        )
-        fig_perm.update_traces(marker_color="#898781")
-        fig_perm.add_vline(
-            x=signal_metrics.iloc[0]["oof_roc_auc"], line_color="#2a78d6", line_width=2,
-            annotation_text="Observed AUC", annotation_position="top",
-        )
-        st.plotly_chart(fig_perm, width="stretch")
+        with st.container(border=True):
+            fig_perm = px.histogram(
+                signal_permutation_null, x="null_auc", nbins=30,
+                labels={"null_auc": "AUC under shuffled labels"},
+                title="Observed AUC vs. the label-shuffled null distribution",
+            )
+            fig_perm.update_traces(marker_color=INK_MUTED, marker_cornerradius=2)
+            fig_perm.add_vline(
+                x=signal_metrics.iloc[0]["oof_roc_auc"], line_color="#2a78d6", line_width=2,
+                annotation_text="Observed AUC", annotation_position="top",
+            )
+            style_fig(fig_perm, height=340)
+            st.plotly_chart(fig_perm, width="stretch")
 
     col_roc, col_coef = st.columns(2)
     with col_roc:
         if signal_roc is not None:
-            fig_roc = go.Figure()
-            fig_roc.add_trace(
-                go.Scatter(x=signal_roc["fpr"], y=signal_roc["tpr"], mode="lines",
-                           name="Model", line=dict(color="#2a78d6", width=2))
-            )
-            fig_roc.add_trace(
-                go.Scatter(x=[0, 1], y=[0, 1], mode="lines", name="Chance",
-                           line=dict(color="#898781", width=1, dash="dash"))
-            )
-            fig_roc.update_layout(
-                title="Out-of-fold ROC curve",
-                xaxis_title="False positive rate",
-                yaxis_title="True positive rate",
-                legend=dict(orientation="h", yanchor="bottom", y=1.02),
-            )
-            st.plotly_chart(fig_roc, width='stretch')
+            with st.container(border=True):
+                fig_roc = go.Figure()
+                fig_roc.add_trace(
+                    go.Scatter(x=signal_roc["fpr"], y=signal_roc["tpr"], mode="lines",
+                               name="Model", line=dict(color="#2a78d6", width=2))
+                )
+                fig_roc.add_trace(
+                    go.Scatter(x=[0, 1], y=[0, 1], mode="lines", name="Chance",
+                               line=dict(color=INK_MUTED, width=1, dash="dash"))
+                )
+                fig_roc.update_layout(
+                    title="Out-of-fold ROC curve",
+                    xaxis_title="False positive rate",
+                    yaxis_title="True positive rate",
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02),
+                )
+                style_fig(fig_roc, height=380)
+                st.plotly_chart(fig_roc, width='stretch')
 
     with col_coef:
         if signal_coefficients is not None:
-            coef_sorted = signal_coefficients.sort_values("standardized_coefficient")
-            fig_coef = px.bar(
-                coef_sorted,
-                x="standardized_coefficient",
-                y="population",
-                orientation="h",
-                color="standardized_coefficient",
-                color_continuous_scale=DIVERGING_SCALE,
-                color_continuous_midpoint=0,
-                labels={"standardized_coefficient": "Standardized coefficient (log-odds)"},
-                title="Logistic regression coefficients (CLR features)",
-            )
-            fig_coef.update_layout(coloraxis_showscale=False)
-            st.plotly_chart(fig_coef, width='stretch')
+            with st.container(border=True):
+                coef_sorted = signal_coefficients.sort_values("standardized_coefficient")
+                fig_coef = px.bar(
+                    coef_sorted,
+                    x="standardized_coefficient",
+                    y="population",
+                    orientation="h",
+                    color="standardized_coefficient",
+                    color_continuous_scale=DIVERGING_SCALE,
+                    color_continuous_midpoint=0,
+                    labels={"standardized_coefficient": "Standardized coefficient (log-odds)"},
+                    title="Logistic regression coefficients (CLR features)",
+                )
+                fig_coef.update_traces(marker_cornerradius=4)
+                fig_coef.update_layout(coloraxis_showscale=False)
+                style_fig(fig_coef, height=380)
+                st.plotly_chart(fig_coef, width='stretch')
 
     col_corr, col_pca = st.columns(2)
     with col_corr:
         if correlations is not None:
-            corr_indexed = correlations.set_index(correlations.columns[0])[POPULATIONS].loc[POPULATIONS]
-            fig_corr = px.imshow(
-                corr_indexed,
-                color_continuous_scale=DIVERGING_SCALE,
-                zmin=-1, zmax=1,
-                text_auto=".2f",
-                labels={"color": "Spearman corr."},
-                title="Population correlation (Spearman)",
-            )
-            st.plotly_chart(fig_corr, width='stretch')
+            with st.container(border=True):
+                corr_indexed = correlations.set_index(correlations.columns[0])[POPULATIONS].loc[POPULATIONS]
+                fig_corr = px.imshow(
+                    corr_indexed,
+                    color_continuous_scale=DIVERGING_SCALE,
+                    zmin=-1, zmax=1,
+                    text_auto=".2f",
+                    labels={"color": "Spearman corr."},
+                    title="Population correlation (Spearman)",
+                )
+                style_fig(fig_corr, height=380)
+                st.plotly_chart(fig_corr, width='stretch')
 
     with col_pca:
         if signal_pca is not None:
-            variance = ""
-            if signal_pca_variance is not None:
-                v1, v2 = signal_pca_variance["explained_variance_ratio"]
-                variance = f" (PC1 {v1:.0%}, PC2 {v2:.0%} of variance)"
-            fig_pca = px.scatter(
-                signal_pca,
-                x="pc1", y="pc2", color="response",
-                color_discrete_map=RESPONSE_COLORS,
-                opacity=0.6,
-                labels={"pc1": "PC1", "pc2": "PC2", "response": "Response"},
-                title=f"PCA of CLR-transformed population mix{variance}",
-            )
-            st.plotly_chart(fig_pca, width='stretch')
+            with st.container(border=True):
+                variance = ""
+                if signal_pca_variance is not None:
+                    v1, v2 = signal_pca_variance["explained_variance_ratio"]
+                    variance = f" (PC1 {v1:.0%}, PC2 {v2:.0%} of variance)"
+                fig_pca = px.scatter(
+                    signal_pca,
+                    x="pc1", y="pc2", color="response",
+                    color_discrete_map=RESPONSE_COLORS,
+                    opacity=0.75,
+                    labels={"pc1": "PC1", "pc2": "PC2", "response": "Response"},
+                    title=f"PCA of CLR-transformed population mix{variance}",
+                )
+                fig_pca.update_traces(marker=dict(size=8, line=dict(width=1, color=CHART_SURFACE)))
+                style_fig(fig_pca, height=380)
+                st.plotly_chart(fig_pca, width='stretch')
