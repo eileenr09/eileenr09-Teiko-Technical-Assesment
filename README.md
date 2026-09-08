@@ -125,6 +125,13 @@ on their own dashboard tabs:
   A 200-iteration permutation test checks whether the resulting AUC is real
   signal or noise. scikit-learn is not used; numpy and scipy, already
   required for Part 3, cover logistic regression, PCA, and ROC/AUC directly.
+  Beyond the headline AUC, the tab also reports out-of-fold accuracy against
+  an always-guess-majority baseline (accuracy alone is a weak signal at this
+  AUC; it barely clears the baseline), per-fold AUC to show CV stability,
+  which populations drive the PCA axes (`signal_model_pca_loadings.csv`),
+  and the out-of-fold predicted-probability distribution split by actual
+  response (`signal_model_oof_predictions.csv`) - a visual check for how much
+  the model's output overlaps between responders and non-responders.
 
 ## Generated outputs
 
@@ -137,5 +144,6 @@ on their own dashboard tabs:
 - `signal_model_metrics.csv`, `signal_model_cv_folds.csv`,
   `signal_model_permutation_null.csv`, `signal_model_coefficients.csv`,
   `signal_model_roc_curve.csv`, `signal_model_pca.csv`,
-  `signal_model_pca_variance.csv`
+  `signal_model_pca_variance.csv`, `signal_model_pca_loadings.csv`,
+  `signal_model_oof_predictions.csv`
 - `baseline_melanoma_pbmc_miraclib.csv`, `subset_breakdown.csv`, `answer.txt`

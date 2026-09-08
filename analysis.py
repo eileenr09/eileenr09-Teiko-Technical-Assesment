@@ -481,6 +481,15 @@ def run_analysis() -> None:
     pca_df["pc1"] = pcs[:, 0]
     pca_df["pc2"] = pcs[:, 1]
 
+    pca_loadings = pd.DataFrame(
+        {"population": POPULATIONS, "pc1_loading": vt[0], "pc2_loading": vt[1]}
+    )
+
+    oof_predictions = wide_pct[["sample", "subject_id", "response"]].copy()
+    oof_predictions["oof_probability"] = oof_proba
+    oof_predictions["predicted_response"] = np.where(oof_proba >= 0.5, "yes", "no")
+    oof_predictions["correct"] = oof_predictions["predicted_response"] == oof_predictions["response"]
+
     pd.DataFrame(
         {
             "cv_fold": range(1, len(fold_aucs) + 1),
@@ -513,6 +522,8 @@ def run_analysis() -> None:
     pd.DataFrame(
         {"component": ["PC1", "PC2"], "explained_variance_ratio": explained_variance_ratio}
     ).to_csv(OUTPUT_DIR / "signal_model_pca_variance.csv", index=False)
+    pca_loadings.to_csv(OUTPUT_DIR / "signal_model_pca_loadings.csv", index=False)
+    oof_predictions.to_csv(OUTPUT_DIR / "signal_model_oof_predictions.csv", index=False)
 
     # Part 4 baseline subset and required breakdowns
     baseline.to_csv(OUTPUT_DIR / "baseline_melanoma_pbmc_miraclib.csv", index=False)

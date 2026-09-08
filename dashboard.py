@@ -78,6 +78,9 @@ signal_coefficients = load_csv("signal_model_coefficients.csv")
 signal_roc = load_csv("signal_model_roc_curve.csv")
 signal_pca = load_csv("signal_model_pca.csv")
 signal_pca_variance = load_csv("signal_model_pca_variance.csv")
+signal_pca_loadings = load_csv("signal_model_pca_loadings.csv")
+signal_cv_folds = load_csv("signal_model_cv_folds.csv")
+signal_oof_predictions = load_csv("signal_model_oof_predictions.csv")
 signal_permutation_null = load_csv("signal_model_permutation_null.csv")
 cohort_overview = load_csv("cohort_overview.csv")
 subject_demographics = load_csv("subject_demographics.csv")
@@ -164,7 +167,8 @@ with st.expander("Generated outputs reference"):
         "- `signal_model_metrics.csv`, `signal_model_cv_folds.csv`, "
         "`signal_model_permutation_null.csv`, `signal_model_coefficients.csv`, "
         "`signal_model_roc_curve.csv`, `signal_model_pca.csv`, "
-        "`signal_model_pca_variance.csv`\n"
+        "`signal_model_pca_variance.csv`, `signal_model_pca_loadings.csv`, "
+        "`signal_model_oof_predictions.csv`\n"
         "- `baseline_melanoma_pbmc_miraclib.csv`, `subset_breakdown.csv`, "
         "`answer.txt`"
     )
@@ -448,25 +452,63 @@ with tab_signal:
         c2.metric("Permutation p-value", f"{m['auc_permutation_p_value']:.3f}")
         c3.metric("Subjects (grouped CV)", int(m["n_subjects"]))
         c4.metric("Responders / non-responders", f"{int(m['n_responders'])} / {int(m['n_non_responders'])}")
+
+        n_responders, n_non_responders = int(m["n_responders"]), int(m["n_non_responders"])
+        n_samples = n_responders + n_non_responders
+        majority_baseline = max(n_responders, n_non_responders) / n_samples
+        d1, d2, d3 = st.columns(3)
+        d1.metric(
+            "Out-of-fold accuracy", f"{m['oof_accuracy']:.1%}",
+            delta=f"{(m['oof_accuracy'] - majority_baseline):+.1%} vs. always-guess-majority",
+        )
+        d2.metric("Always-guess-majority baseline", f"{majority_baseline:.1%}")
+        d3.metric("Mean fold AUC", f"{m['mean_fold_auc']:.3f} ± {m['std_fold_auc']:.3f}")
+
         st.caption(
             f"Cross-validation: {m['cv_scheme']}. The AUC ({m['oof_roc_auc']:.3f}) is modest in "
             f"absolute terms, but a {int(m['n_permutations'])}-permutation label-shuffle test shows "
             f"it beats every shuffled-label run (p={m['auc_permutation_p_value']:.3f}) - a real, "
-            "reproducible signal, just too weak on these five features alone to be clinically useful."
+            "reproducible signal, just too weak on these five features alone to be clinically useful. "
+            "Accuracy barely clears the always-guess-majority baseline, which is expected at this AUC: "
+            "a model needs to separate classes by a wide margin before accuracy (a 0.5-threshold call) "
+            "moves much past just picking the larger class every time - AUC is the more honest number "
+            "to report here."
         )
 
-    if signal_permutation_null is not None and signal_metrics is not None:
-        fig_perm = px.histogram(
-            signal_permutation_null, x="null_auc", nbins=30,
-            labels={"null_auc": "AUC under shuffled labels"},
-            title="Observed AUC vs. the label-shuffled null distribution",
-        )
-        fig_perm.update_traces(marker_color="#898781")
-        fig_perm.add_vline(
-            x=signal_metrics.iloc[0]["oof_roc_auc"], line_color="#2a78d6", line_width=2,
-            annotation_text="Observed AUC", annotation_position="top",
-        )
-        st.plotly_chart(fig_perm, width="stretch")
+    col_perm, col_folds = st.columns(2)
+    with col_perm:
+        if signal_permutation_null is not None and signal_metrics is not None:
+            fig_perm = px.histogram(
+                signal_permutation_null, x="null_auc", nbins=30,
+                labels={"null_auc": "AUC under shuffled labels"},
+                title="Observed AUC vs. the label-shuffled null distribution",
+            )
+            fig_perm.update_traces(marker_color="#898781")
+            fig_perm.add_vline(
+                x=signal_metrics.iloc[0]["oof_roc_auc"], line_color="#2a78d6", line_width=2,
+                annotation_text="Observed AUC", annotation_position="top",
+            )
+            st.plotly_chart(fig_perm, width="stretch")
+
+    with col_folds:
+        if signal_cv_folds is not None and signal_metrics is not None:
+            fig_folds = px.bar(
+                signal_cv_folds, x="cv_fold", y="fold_auc",
+                labels={"cv_fold": "Fold", "fold_auc": "AUC"},
+                title="Out-of-fold AUC by cross-validation fold",
+            )
+            fig_folds.update_traces(marker_color="#2a78d6")
+            fig_folds.add_hline(
+                y=signal_metrics.iloc[0]["oof_roc_auc"], line_color="#898781", line_dash="dash",
+                annotation_text="Pooled OOF AUC", annotation_position="bottom right",
+            )
+            fig_folds.update_yaxes(range=[0, 1])
+            st.plotly_chart(fig_folds, width="stretch")
+            st.caption(
+                "Per-fold AUC varies with which subjects land in the held-out fold - this "
+                "spread is why the pooled out-of-fold AUC (dashed line) is the number to "
+                "trust over any single fold."
+            )
 
     col_roc, col_coef = st.columns(2)
     with col_roc:
@@ -504,6 +546,17 @@ with tab_signal:
             )
             fig_coef.update_layout(coloraxis_showscale=False)
             st.plotly_chart(fig_coef, width='stretch')
+            st.caption(
+                "Odds ratio = e^(coefficient): how much the odds of response multiply "
+                "per 1-SD increase in that population's CLR-transformed share, holding "
+                "the other four fixed."
+            )
+            st.dataframe(
+                coef_sorted[["population", "standardized_coefficient", "odds_ratio"]]
+                .sort_values("standardized_coefficient", key=lambda s: s.abs(), ascending=False)
+                .round(3),
+                width='stretch', hide_index=True,
+            )
 
     col_corr, col_pca = st.columns(2)
     with col_corr:
@@ -534,3 +587,46 @@ with tab_signal:
                 title=f"PCA of CLR-transformed population mix{variance}",
             )
             st.plotly_chart(fig_pca, width='stretch')
+
+    col_loadings, col_calibration = st.columns(2)
+    with col_loadings:
+        if signal_pca_loadings is not None:
+            loadings_long = signal_pca_loadings.melt(
+                id_vars="population", value_vars=["pc1_loading", "pc2_loading"],
+                var_name="component", value_name="loading",
+            )
+            loadings_long["component"] = loadings_long["component"].map(
+                {"pc1_loading": "PC1", "pc2_loading": "PC2"}
+            )
+            fig_load = px.bar(
+                loadings_long, x="population", y="loading", color="component",
+                barmode="group",
+                category_orders={"population": POPULATIONS},
+                color_discrete_map={"PC1": "#2a78d6", "PC2": "#eb6834"},
+                labels={"loading": "Loading", "population": "Population", "component": "Component"},
+                title="What drives PC1 vs. PC2",
+            )
+            st.plotly_chart(fig_load, width='stretch')
+            st.caption(
+                "Each bar is that population's weight in the PCA axis above - the "
+                "larger the magnitude, the more that population's CLR value moves a "
+                "sample along that axis. b_cell dominates PC1; nk_cell dominates PC2."
+            )
+
+    with col_calibration:
+        if signal_oof_predictions is not None:
+            fig_calib = px.histogram(
+                signal_oof_predictions, x="oof_probability", color="response",
+                barmode="overlay", opacity=0.65, nbins=30,
+                color_discrete_map=RESPONSE_COLORS,
+                labels={"oof_probability": "Predicted probability of response", "response": "Actual response"},
+                title="Out-of-fold predicted probability, by actual response",
+            )
+            fig_calib.add_vline(x=0.5, line_color="#898781", line_dash="dash", annotation_text="0.5 cutoff")
+            st.plotly_chart(fig_calib, width='stretch')
+            st.caption(
+                "If the model separated the classes well, the two colors would sit in "
+                "different ranges either side of 0.5. Instead they largely overlap - the "
+                "visual counterpart of the modest AUC: the model shifts the odds a little, "
+                "it doesn't sort responders from non-responders."
+            )
