@@ -464,10 +464,12 @@ with tab_signal:
         d2.metric("Always-guess-majority baseline", f"{majority_baseline:.1%}")
         d3.metric("Mean fold AUC", f"{m['mean_fold_auc']:.3f} ± {m['std_fold_auc']:.3f}")
 
+        n_beating = int(m["n_null_beating_observed"]) if "n_null_beating_observed" in m else 0
         st.caption(
             f"Cross-validation: {m['cv_scheme']}. The AUC ({m['oof_roc_auc']:.3f}) is modest in "
             f"absolute terms, but a {int(m['n_permutations'])}-permutation label-shuffle test shows "
-            f"it beats every shuffled-label run (p={m['auc_permutation_p_value']:.3f}) - a real, "
+            f"only {n_beating} of {int(m['n_permutations'])} shuffled-label runs matched or beat it "
+            f"(p={m['auc_permutation_p_value']:.4f}) - a real, "
             "reproducible signal, just too weak on these five features alone to be clinically useful. "
             "Accuracy barely clears the always-guess-majority baseline, which is expected at this AUC: "
             "a model needs to separate classes by a wide margin before accuracy (a 0.5-threshold call) "

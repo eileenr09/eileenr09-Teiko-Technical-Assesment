@@ -11,6 +11,7 @@ DATABASE_PATH = ROOT / "cell_counts.db"
 OUTPUT_DIR = ROOT / "outputs"
 POPULATIONS = ["b_cell", "cd8_t_cell", "cd4_t_cell", "nk_cell", "monocyte"]
 RANDOM_STATE = 42
+N_PERMUTATIONS = 2000
 
 
 # Part 3 statistics helpers
@@ -458,11 +459,12 @@ def run_analysis() -> None:
         fold_of_subject,
         n_splits,
         oof_auc,
-        n_permutations=200,
+        n_permutations=N_PERMUTATIONS,
     )
     pd.DataFrame({"null_auc": null_aucs}).to_csv(
         OUTPUT_DIR / "signal_model_permutation_null.csv", index=False
     )
+    n_null_beating_observed = int(np.sum(null_aucs >= oof_auc))
 
     final_beta = fit_logistic_regression(X_scaled, y)
     coefficients = pd.DataFrame(
@@ -511,7 +513,8 @@ def run_analysis() -> None:
                 "mean_fold_auc": float(np.mean(fold_aucs)),
                 "std_fold_auc": float(np.std(fold_aucs)),
                 "auc_permutation_p_value": auc_p_value,
-                "n_permutations": 200,
+                "n_permutations": N_PERMUTATIONS,
+                "n_null_beating_observed": n_null_beating_observed,
             }
         ]
     ).to_csv(OUTPUT_DIR / "signal_model_metrics.csv", index=False)

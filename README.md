@@ -122,9 +122,16 @@ on their own dashboard tabs:
   data, summing to 100 per sample) before a hand-rolled L2-regularized
   logistic regression, evaluated with subject-grouped, response-stratified
   5-fold cross-validation so a subject's samples never span train and test.
-  A 200-iteration permutation test checks whether the resulting AUC is real
-  signal or noise. scikit-learn is not used; numpy and scipy, already
-  required for Part 3, cover logistic regression, PCA, and ROC/AUC directly.
+  A 2,000-iteration permutation test checks whether the resulting AUC is real
+  signal or noise (raised from an initial 200: at 200 iterations the observed
+  AUC beat all of them, which only proves p <= 1/201 - the resolution limit
+  of that many draws, not the real p-value. At 2,000 iterations, 3 permuted
+  runs matched or beat the observed AUC, giving a resolved p ~ 0.002, in line
+  with the null distribution's own shape (observed AUC is ~2.5 standard
+  deviations above the null mean) - the earlier "p=0.005" was a floor
+  artifact, not the true significance). scikit-learn is not used; numpy and
+  scipy, already required for Part 3, cover logistic regression, PCA, and
+  ROC/AUC directly.
   Beyond the headline AUC, the tab also reports out-of-fold accuracy against
   an always-guess-majority baseline (accuracy alone is a weak signal at this
   AUC; it barely clears the baseline), per-fold AUC to show CV stability,
