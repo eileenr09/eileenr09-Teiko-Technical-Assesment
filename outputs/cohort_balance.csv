@@ -1,0 +1,3 @@
+covariate,test,statistic,p_value,responders_summary,non_responders_summary
+age,Mann-Whitney U,55803.0,0.4060868233001935,"mean=64.5, n=331","mean=63.9, n=325"
+sex,Fisher exact (2x2),1.2908163265306123,0.11785274886330449,"F=147, M=184","F=165, M=160"

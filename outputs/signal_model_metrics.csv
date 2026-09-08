@@ -1,0 +1,2 @@
+n_samples,n_subjects,n_responders,n_non_responders,cv_scheme,features,oof_roc_auc,oof_accuracy,mean_fold_auc,std_fold_auc,auc_permutation_p_value,n_permutations
+1968,656,993,975,"5-fold, grouped and stratified by subject_id",CLR-transformed population proportions,0.5362883776176828,0.5248983739837398,0.5376739457336472,0.028477751485427697,0.004975124378109453,200

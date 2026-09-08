@@ -1,0 +1,7 @@
+breakdown,category,count
+samples_per_project,prj1,384
+samples_per_project,prj3,272
+responders_by_subject,yes,331
+responders_by_subject,no,325
+sex_by_subject,M,344
+sex_by_subject,F,312

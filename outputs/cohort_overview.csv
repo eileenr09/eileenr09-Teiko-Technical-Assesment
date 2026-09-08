@@ -1,0 +1,14 @@
+dimension,category,sample_count,subject_count
+condition,carcinoma,3903,1301
+condition,healthy,1422,474
+condition,melanoma,5175,1725
+treatment,miraclib,4695,1565
+treatment,none,1422,474
+treatment,phauximab,4383,1461
+sample_type,PBMC,7500,2500
+sample_type,WB,3000,1000
+sex,F,5070,1690
+sex,M,5430,1810
+project,prj1,4500,1500
+project,prj2,3000,1000
+project,prj3,3000,1000
